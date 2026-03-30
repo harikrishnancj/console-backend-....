@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source env/Scripts/activate)",
+      "Bash(source \"c:/Users/harikrishnan/OneDrive/Desktop/console_v7/env/Scripts/activate\")"
+    ]
+  }
+}
