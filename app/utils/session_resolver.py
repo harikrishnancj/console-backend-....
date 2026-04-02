@@ -5,29 +5,19 @@ import json
 
 SESSION_COOKIE_NAME = "access_token"
 
-async def get_session_identity(request: Request, required_user_types: list = None):
+async def get_session_identity(request: Request):
     session_jwt = request.cookies.get(SESSION_COOKIE_NAME)
     if not session_jwt:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     # 1. Decode JWT to extract the raw session_id
     session_payload = verify_token(session_jwt)
-    if not session_payload:
+    if not session_payload or session_payload.get("token_type") != "access":
         raise HTTPException(status_code=401, detail="Invalid or expired session token")
-    
-    # Verify Token Type - check both token_type and type fields for backwards compatibility
-    token_type = session_payload.get("token_type")
-    user_type_from_type = session_payload.get("type")
-    
-    # Valid token types: "access", "refresh", "product_session"
-    # Valid user types from "type" field: "tenant", "user", "superadmin"
-    if token_type not in ["access", "refresh", "product_session"]:
-        if user_type_from_type not in ["tenant", "user", "superadmin"]:
-            raise HTTPException(status_code=401, detail="Invalid session token type")
     
     raw_session_id = session_payload.get("session_id")
     
-    # 2. Lookup in Redis using the extracted session_id
+    # 2. Lookup in Redis using the extracted session_id (async)
     vault_json = await redis_client.get(f"session:{raw_session_id}")
     if not vault_json:
         raise HTTPException(status_code=401, detail="Invalid Session")
@@ -41,13 +31,10 @@ async def get_session_identity(request: Request, required_user_types: list = Non
     # 4. Extract Identity Information
     tenant_id = vault.get("tenant_id")
     user_id = vault.get("user_id")
-    user_type = vault.get("user_type") or vault.get("type") # Backwards compat
+    user_type = vault.get("user_type")
     
-    # 5. Type Validation
-    if required_user_types and user_type not in required_user_types:
-         raise HTTPException(status_code=401, detail=f"Unauthorized identity type: {user_type}")
-
     # Logic to normalize tenant_id for different roles
+    # If the user is a tenant themselves, the user_id is the tenant_id
     if tenant_id is None:
         if user_type == "tenant":
             tenant_id = user_id
@@ -58,8 +45,8 @@ async def get_session_identity(request: Request, required_user_types: list = Non
     return {
         "tenant_id": int(tenant_id),
         "user_id": int(user_id) if user_id else None,
-        "session_id": raw_session_id,
         "user_type": user_type,
+        "session_id": raw_session_id,
         "roles": vault.get("roles", []),
         "permissions": vault.get("permissions", [])
     }

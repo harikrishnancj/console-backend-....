@@ -15,7 +15,7 @@ async def login_service(db: Session, login_data: TenantValidate):
         # Generate Session ID first
         session_id = str(uuid.uuid4())
         
-        claims = {"type": "tenant", "tenant_id": tenant.tenant_id}
+        claims = {"user_type": "tenant", "tenant_id": tenant.tenant_id}
         subject = str(tenant.tenant_id)
         token_id = tenant.tenant_id
         
@@ -31,7 +31,7 @@ async def login_service(db: Session, login_data: TenantValidate):
             "refresh_token": refresh_token
         }
 
-        redis_client.set(f"session:{session_id}", json.dumps(vault_data), ex=REFRESH_TOKEN_EXPIRE_MINUTES * 60)
+        await redis_client.set(f"session:{session_id}", json.dumps(vault_data), ex=REFRESH_TOKEN_EXPIRE_MINUTES * 60)
         
         return {
             "access_token": access_token,
@@ -45,7 +45,7 @@ async def login_service(db: Session, login_data: TenantValidate):
         # Generate Session ID first
         session_id = str(uuid.uuid4())
         
-        claims = {"type": "user", "tenant_id": user.tenant_id}
+        claims = {"user_type": "user", "tenant_id": user.tenant_id}
         subject = str(user.user_id)
         token_id = user.user_id 
         

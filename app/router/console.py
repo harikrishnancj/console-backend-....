@@ -8,40 +8,41 @@ from app.schemas.auth import VerifyTokenRequest
 from app.models.product import Product
 from app.crud.crud4user_products import check_user_product_access
 from app.crud import product as product_crud
-from fastapi.responses import RedirectResponse
+
 router = APIRouter()
 
 @router.get("/check-auth")
 async def check_console_auth(
     request: Request,
+    product_id: int = None,
     db: Session = Depends(get_db)
 ):
     # 1. First: Check if user has a valid console session!
     # We restrict this to 'tenant' or 'user' types (no product_sessions allowed)
     try:
-        auth_ctx = await get_session_identity(request, required_user_types=["tenant", "user"])
+        auth_ctx = await get_session_identity(request)
+        if auth_ctx["user_type"] not in ["tenant", "user"]:
+             raise HTTPException(status_code=401, detail="Invalid session type for console auth")
     except HTTPException as e:
-        return RedirectResponse(url="/login", status_code=303)
-    
-    
-    ''''wrap_response(
-            data={"authenticated": False, "redirect_to": "/login", "reason": e.detail}, 
+        return wrap_response(
+            data={"authenticated": False, "redirect_to": "/login"},
             message="No valid console session. Please login."
-        )'''
-
-    # 2. Second: Now that they are logged in, validate the Product ID they requested
-    product_id_str = request.headers.get("Product-ID")
-    if not product_id_str:
-        return wrap_response(data={"authenticated": False}, message="Missing Product-ID header")
+        )
     
-    try:
-        product_id = int(product_id_str)
-    except ValueError:
-         return wrap_response(data={"authenticated": False}, message="Invalid Product-ID format")
+    # 2. Second: Now that they are logged in, validate the Product ID they requested
+    if product_id is None:
+        product_id_str = request.headers.get("Product-ID")
+        if not product_id_str:
+            return wrap_response(data={"authenticated": False}, message="Missing Product-ID")
+        
+        try:
+            product_id = int(product_id_str)
+        except ValueError:
+             return wrap_response(data={"authenticated": False}, message="Invalid Product-ID format")
 
     # 3. Third: Session is valid AND Product ID is valid -> Generate temp token
     try:
-        temp_token = console_auth.check_auth_and_generate_temp_token(
+        temp_token = await console_auth.check_auth_and_generate_temp_token(
             db=db,
             tenant_id=auth_ctx["tenant_id"],
             user_id=auth_ctx.get("user_id"),
@@ -54,11 +55,9 @@ async def check_console_auth(
             message="Session valid, temp token issued"
         )
     except HTTPException as e:
-        # Check if the reason was specifically a non-approved mapping
         detail = e.detail
         reason = "access_denied"
         
-        # If the error comes from the service, we can translate it
         if "not subscribed" in detail.lower():
             reason = "no_subscription"
         elif "permission" in detail.lower():
