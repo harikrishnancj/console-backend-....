@@ -79,7 +79,7 @@ def get_me(auth_ctx: dict = Depends(get_session_identity), db: Session = Depends
     return wrap_response(data=result, message="Session details retrieved")
 
 @router.post("/logout")
-def logout(request: Request, response: Response):
+async def logout(request: Request, response: Response):
     access_jwt = request.cookies.get(SESSION_COOKIE_NAME)
     if not access_jwt:
         raise HTTPException(status_code=401, detail="No active session")
@@ -99,7 +99,7 @@ def logout(request: Request, response: Response):
     return wrap_response(data=result, message="Logout successful")
 
 @router.post("/refresh-token")
-def refresh_token(request: Request, response: Response):
+async def refresh_token(request: Request, response: Response):
     refresh_jwt = request.cookies.get(REFRESH_COOKIE_NAME)
     if not refresh_jwt:
         raise HTTPException(status_code=401, detail="No refresh token found")

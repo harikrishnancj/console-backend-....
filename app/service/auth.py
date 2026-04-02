@@ -12,18 +12,18 @@ from app.crud import crud4user as crud_user
 async def login_service(db: Session, login_data: TenantValidate):
     tenant = db.query(Tenant).filter(Tenant.email == login_data.email).first()
     if tenant and verify_password(login_data.password, tenant.hashed_password):
+        # Generate Session ID first
+        session_id = str(uuid.uuid4())
+        
         claims = {"type": "tenant", "tenant_id": tenant.tenant_id}
         subject = str(tenant.tenant_id)
         token_id = tenant.tenant_id
         
-        # 1. Generate Session ID first
-        session_id = str(uuid.uuid4())
-        
-        # 2. Create tokens
-        access_token = create_access_token(subject, session_id=session_id, user_type="tenant")
-        refresh_token = create_refresh_token(subject, session_id=session_id, user_type="tenant")
+        # Create tokens with session_id in JWT
+        access_token = create_access_token(subject, session_id=session_id, user_type="tenant", claims=claims)
+        refresh_token = create_refresh_token(subject, session_id=session_id, user_type="tenant", claims=claims)
 
-        # 3. Store identity in Redis (Vault)
+        # Store identity in Redis (Vault)
         vault_data = {
             "user_id": token_id, 
             "tenant_id": tenant.tenant_id,
@@ -42,22 +42,22 @@ async def login_service(db: Session, login_data: TenantValidate):
     user = crud_user.get_user_by_email(db, email=login_data.email)
     if user and verify_password(login_data.password, user.hashed_password):
     
+        # Generate Session ID first
+        session_id = str(uuid.uuid4())
+        
         claims = {"type": "user", "tenant_id": user.tenant_id}
         subject = str(user.user_id)
         token_id = user.user_id 
         
-        # 1. Generate Session ID first
-        session_id = str(uuid.uuid4())
-        
-        # 4. Create tokens
-        access_token = create_access_token(subject, session_id=session_id, user_type="user")
-        refresh_token = create_refresh_token(subject, session_id=session_id, user_type="user")
+        # Create tokens with session_id in JWT
+        access_token = create_access_token(subject, session_id=session_id, user_type="user", claims=claims)
+        refresh_token = create_refresh_token(subject, session_id=session_id, user_type="user", claims=claims)
 
-        # 5. Fetch permissions and roles
+        # Fetch permissions and roles
         permissions = get_user_permissions(db, user.user_id)
         roles = get_user_roles(db, user.user_id)
 
-        # 6. Store identity and REFRESH TOKEN in Redis
+        # Store identity and REFRESH TOKEN in Redis
         vault_data = {
             "user_id": token_id, 
             "tenant_id": user.tenant_id,

@@ -8,7 +8,7 @@ from app.schemas.auth import VerifyTokenRequest
 from app.models.product import Product
 from app.crud.crud4user_products import check_user_product_access
 from app.crud import product as product_crud
-
+from fastapi.responses import RedirectResponse
 router = APIRouter()
 
 @router.get("/check-auth")
@@ -21,10 +21,13 @@ async def check_console_auth(
     try:
         auth_ctx = await get_session_identity(request, required_user_types=["tenant", "user"])
     except HTTPException as e:
-        return wrap_response(
+        return RedirectResponse(url="/login", status_code=303)
+    
+    
+    ''''wrap_response(
             data={"authenticated": False, "redirect_to": "/login", "reason": e.detail}, 
             message="No valid console session. Please login."
-        )
+        )'''
 
     # 2. Second: Now that they are logged in, validate the Product ID they requested
     product_id_str = request.headers.get("Product-ID")
@@ -42,7 +45,7 @@ async def check_console_auth(
             db=db,
             tenant_id=auth_ctx["tenant_id"],
             user_id=auth_ctx.get("user_id"),
-            type_=auth_ctx["type"],
+            user_type=auth_ctx["user_type"],
             product_id=product_id,
             session_id=auth_ctx.get("session_id")
         )

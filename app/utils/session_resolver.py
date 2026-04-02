@@ -15,10 +15,14 @@ async def get_session_identity(request: Request, required_user_types: list = Non
     if not session_payload:
         raise HTTPException(status_code=401, detail="Invalid or expired session token")
     
-    # Verify Token Type
-    if session_payload.get("token_type") != "access":
-         # Backwards compatibility or alternative labels if needed: 
-         if session_payload.get("token_type") not in ["access", "product_session"] and session_payload.get("type") not in ["access", "tenant", "user"]:
+    # Verify Token Type - check both token_type and type fields for backwards compatibility
+    token_type = session_payload.get("token_type")
+    user_type_from_type = session_payload.get("type")
+    
+    # Valid token types: "access", "refresh", "product_session"
+    # Valid user types from "type" field: "tenant", "user", "superadmin"
+    if token_type not in ["access", "refresh", "product_session"]:
+        if user_type_from_type not in ["tenant", "user", "superadmin"]:
             raise HTTPException(status_code=401, detail="Invalid session token type")
     
     raw_session_id = session_payload.get("session_id")
